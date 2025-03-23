@@ -28,7 +28,7 @@ user_data = {}
 
 def generate_welcome_message():
     return """
-    👋 Olá! Bem-vindo(a) à Lavanderia!
+    👋 Olá! Bem-vindo(a) à Lavanderia Lavatudo!
     
     Como posso ajudar você hoje?
     

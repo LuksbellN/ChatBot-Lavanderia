@@ -1,8 +1,8 @@
 from flask import Flask, request, session
-from twilio.twiml.messaging_response import MessagingResponse
 import json
 import re
 import os
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -12,9 +12,9 @@ app = Flask(__name__)
 
 # Configuration
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
-TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
-TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
+WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN')
+WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_API_URL = f"https://graph.facebook.com/v17.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
 
 # User states
 WELCOME = 'welcome'
@@ -25,6 +25,22 @@ QUOTE_REQUEST = 'quote_request'
 # Store user states and data in memory (in production, use a proper database)
 user_states = {}
 user_data = {}
+
+def send_whatsapp_message(phone_number, message):
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "messaging_product": "whatsapp",
+        "to": phone_number,
+        "type": "text",
+        "text": {"body": message}
+    }
+    
+    response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+    return response.json()
 
 def generate_welcome_message():
     return """
@@ -203,48 +219,65 @@ def handle_quote_request(phone_number, message):
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    incoming_msg = request.form.get('Body', '').strip()
-    phone_number = request.form.get('From', '')
+    # Verify webhook
+    if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
+        if request.args.get("hub.verify_token") == os.getenv("WHATSAPP_VERIFY_TOKEN"):
+            return request.args["hub.challenge"]
+        return "Invalid verification token"
     
-    response = MessagingResponse()
+    # Handle incoming messages
+    data = request.get_json()
     
-    # Get current user state
-    current_state = get_user_state(phone_number)
+    if data.get("object") == "whatsapp_business_account":
+        try:
+            for entry in data.get("entry", []):
+                for change in entry.get("changes", []):
+                    if change.get("value", {}).get("messages"):
+                        for message in change["value"]["messages"]:
+                            phone_number = message["from"]
+                            incoming_msg = message["text"]["body"].strip()
+                            
+                            # Get current user state
+                            current_state = get_user_state(phone_number)
+                            
+                            # Handle menu requests
+                            if is_natural_language_menu_request(incoming_msg) or incoming_msg == '0':
+                                set_user_state(phone_number, MAIN_MENU)
+                                set_user_data(phone_number, {})
+                                send_whatsapp_message(phone_number, generate_menu())
+                                return "OK"
+                            
+                            # Handle welcome state
+                            if current_state == WELCOME:
+                                set_user_state(phone_number, MAIN_MENU)
+                                send_whatsapp_message(phone_number, generate_welcome_message())
+                                return "OK"
+                            
+                            # Process message based on current state
+                            if current_state == MAIN_MENU:
+                                if is_numeric_input(incoming_msg) and 1 <= int(incoming_msg) <= 13:
+                                    if incoming_msg == '7':
+                                        set_user_state(phone_number, SERVICE_INFO)
+                                    elif incoming_msg == '8':
+                                        set_user_state(phone_number, QUOTE_REQUEST)
+                                    send_whatsapp_message(phone_number, process_main_option(incoming_msg))
+                                else:
+                                    send_whatsapp_message(phone_number, "❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para ver as opções disponíveis.")
+                            
+                            elif current_state == SERVICE_INFO:
+                                if is_numeric_input(incoming_msg) and 1 <= int(incoming_msg) <= 3:
+                                    send_whatsapp_message(phone_number, process_service_option(incoming_msg))
+                                else:
+                                    send_whatsapp_message(phone_number, "❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para voltar ao menu principal.")
+                            
+                            elif current_state == QUOTE_REQUEST:
+                                send_whatsapp_message(phone_number, handle_quote_request(phone_number, incoming_msg))
+                            
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
+            return "Error", 500
     
-    # Handle menu requests
-    if is_natural_language_menu_request(incoming_msg) or incoming_msg == '0':
-        set_user_state(phone_number, MAIN_MENU)
-        set_user_data(phone_number, {})
-        response.message(generate_menu())
-        return str(response)
-    
-    # Handle welcome state
-    if current_state == WELCOME:
-        set_user_state(phone_number, MAIN_MENU)
-        response.message(generate_welcome_message())
-        return str(response)
-    
-    # Process message based on current state
-    if current_state == MAIN_MENU:
-        if is_numeric_input(incoming_msg) and 1 <= int(incoming_msg) <= 13:
-            if incoming_msg == '7':
-                set_user_state(phone_number, SERVICE_INFO)
-            elif incoming_msg == '8':
-                set_user_state(phone_number, QUOTE_REQUEST)
-            response.message(process_main_option(incoming_msg))
-        else:
-            response.message("❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para ver as opções disponíveis.")
-    
-    elif current_state == SERVICE_INFO:
-        if is_numeric_input(incoming_msg) and 1 <= int(incoming_msg) <= 3:
-            response.message(process_service_option(incoming_msg))
-        else:
-            response.message("❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para voltar ao menu principal.")
-    
-    elif current_state == QUOTE_REQUEST:
-        response.message(handle_quote_request(phone_number, incoming_msg))
-    
-    return str(response)
+    return "OK"
 
 if __name__ == "__main__":
     app.run(debug=True)

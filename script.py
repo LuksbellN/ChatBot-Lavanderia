@@ -26,7 +26,7 @@ QUOTE_REQUEST = 'quote_request'
 user_states = {}
 user_data = {}
 
-def send_whatsapp_message(phone_number, message):
+def send_whatsapp_message(phone_number, message, buttons=None):
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
         "Content-Type": "application/json"
@@ -38,6 +38,22 @@ def send_whatsapp_message(phone_number, message):
         "type": "text",
         "text": {"body": message}
     }
+    
+    if buttons:
+        data = {
+            "messaging_product": "whatsapp",
+            "to": phone_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {
+                    "text": message
+                },
+                "action": {
+                    "buttons": buttons
+                }
+            }
+        }
     
     response = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
     return response.json()
@@ -108,29 +124,123 @@ def generate_service_menu():
 
 def process_service_option(option):
     responses = {
-        '1': "Roupas do dia a dia:\n- Serviço por kg\n- Lavagem e secagem\n- Passadoria básica\n- Prazo: 24-48h",
-        '2': "Itens especiais:\n- Lavagem individual\n- Tratamento especial\n- Passadoria especial\n- Prazo: 48-72h",
-        '3': "Enxoval:\n- Lavagem especial\n- Embalagem individual\n- Prazo: 72-96h"
+        '1': {
+            'message': "Roupas do dia a dia:\n- Serviço por kg\n- Lavagem e secagem\n- Passadoria básica\n- Prazo: 24-48h",
+            'buttons': None
+        },
+        '2': {
+            'message': "Itens especiais:\n- Lavagem individual\n- Tratamento especial\n- Passadoria especial\n- Prazo: 48-72h",
+            'buttons': None
+        },
+        '3': {
+            'message': "Enxoval:\n- Lavagem especial\n- Embalagem individual\n- Prazo: 72-96h",
+            'buttons': None
+        }
     }
-    return responses.get(option, "Opção inválida. Por favor, escolha uma opção válida.")
+    return responses.get(option, {
+        'message': "Opção inválida. Por favor, escolha uma opção válida.",
+        'buttons': None
+    })
 
 def process_main_option(option):
     responses = {
-        '1': "🕒 *Horário de atendimento*\nSeg a Sex: 8h às 19h\nSábado: 9h às 13h",
-        '2': "💰 *Tabela de preços*\nPor favor, verifique o documento anexado com nossa tabela de preços.",
-        '3': "⏱️ *Prazo de entrega*\nPor favor, verifique o documento anexado com nossos prazos.",
-        '4': "🚚 *Serviço de busca e entrega*\nValor: R$ 10 a R$ 30 (dependendo da distância)",
-        '5': "📅 *Agendamento*\nPara agendar, entre em contato com nosso atendente.",
-        '6': "🔍 *Verificação de roupas*\nUm atendente verificará se sua roupa está pronta.",
-        '7': generate_service_menu(),
-        '8': "📝 *Solicitar orçamento*\nPrecisamos das seguintes informações:\n- Nome\n- CNPJ (se empresa)\n- Endereço\n- Tipo de peça\n- Quantidade\n- Manchas\n- Prazo necessário\n\nPor favor, envie esses detalhes.",
-        '9': "👟 *Lavagem de tênis*\nOferecemos lavagem especial para tênis com produtos específicos.",
-        '10': "📍 *Endereço*\nAvenida Lazaro de Sousa Campos, 544 - Bairro São José",
-        '11': "👗 *Lavagem de vestidos*\n- Vestido de festa: a partir de R$ 80,00\n- Vestido de noiva: a partir de R$ 250,00",
-        '12': "🎨 *Tingimento*\nNão trabalhamos com tingimento.\nRecomendamos:\n- Tchau Varal\n- Restaura Jeans",
-        '13': "🛋️ *Lavagem de sofá/tapete*\nNão oferecemos este serviço.\nRecomendamos: Carlos da Personal Clean\nTel: (16) 999994727"
+        '1': {
+            'message': "🕒 *Horário de atendimento*\nSeg a Sex: 8h às 19h\nSábado: 9h às 13h",
+            'buttons': None
+        },
+        '2': {
+            'message': "💰 *Tabela de preços*\nPor favor, verifique o documento anexado com nossa tabela de preços.",
+            'buttons': None
+        },
+        '3': {
+            'message': "⏱️ *Prazo de entrega*\nPor favor, verifique o documento anexado com nossos prazos.",
+            'buttons': None
+        },
+        '4': {
+            'message': "🚚 *Serviço de busca e entrega*\nValor: R$ 10 a R$ 30 (dependendo da distância)\n\nPara agendar, entre em contato com nosso atendente.",
+            'buttons': [
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": "agendar_busca",
+                        "title": "Agendar Busca"
+                    }
+                }
+            ]
+        },
+        '5': {
+            'message': "📅 *Agendamento*\nPara agendar, entre em contato com nosso atendente.",
+            'buttons': [
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": "agendar_horario",
+                        "title": "Agendar Horário"
+                    }
+                }
+            ]
+        },
+        '6': {
+            'message': "🔍 *Verificação de roupas*\nUm atendente verificará se sua roupa está pronta.",
+            'buttons': None
+        },
+        '7': {
+            'message': generate_service_menu(),
+            'buttons': None
+        },
+        '8': {
+            'message': "📝 *Solicitar orçamento*\nPrecisamos das seguintes informações:\n- Nome\n- CNPJ (se empresa)\n- Endereço\n- Tipo de peça\n- Quantidade\n- Manchas\n- Prazo necessário\n\nPor favor, envie esses detalhes.",
+            'buttons': None
+        },
+        '9': {
+            'message': "👟 *Lavagem de tênis*\nOferecemos lavagem especial para tênis com produtos específicos.\nPreço: R$ 40,00 o par\nPrazo: 48h",
+            'buttons': [
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": "agendar_tenis",
+                        "title": "Agendar Lavagem"
+                    }
+                }
+            ]
+        },
+        '10': {
+            'message': "📍 *Endereço*\nAvenida Lazaro de Sousa Campos, 544 - Bairro São José\n\nHorário de atendimento:\nSeg a Sex: 8h às 19h\nSábado: 9h às 13h",
+            'buttons': [
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": "abrir_maps",
+                        "title": "Abrir no Maps"
+                    }
+                }
+            ]
+        },
+        '11': {
+            'message': "👗 *Lavagem de vestidos*\n- Vestido de festa: a partir de R$ 80,00\n- Vestido de noiva: a partir de R$ 250,00\n\nPrazo: 72h\n\nPara agendar, entre em contato com nosso atendente.",
+            'buttons': [
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": "agendar_vestido",
+                        "title": "Agendar Lavagem"
+                    }
+                }
+            ]
+        },
+        '12': {
+            'message': "🎨 *Tingimento*\nNão trabalhamos com tingimento.\nRecomendamos:\n- Tchau Varal\n- Restaura Jeans",
+            'buttons': None
+        },
+        '13': {
+            'message': "🛋️ *Lavagem de sofá/tapete*\nNão oferecemos este serviço.\nRecomendamos: Carlos da Personal Clean\nTel: (16) 999994727",
+            'buttons': None
+        }
     }
-    return responses.get(option, "Opção inválida. Por favor, escolha uma opção válida.")
+    return responses.get(option, {
+        'message': "Opção inválida. Por favor, escolha uma opção válida.",
+        'buttons': None
+    })
 
 def get_user_state(phone_number):
     return user_states.get(phone_number, WELCOME)
@@ -235,6 +345,23 @@ def webhook():
                     if change.get("value", {}).get("messages"):
                         for message in change["value"]["messages"]:
                             phone_number = message["from"]
+                            
+                            # Handle button responses
+                            if "interactive" in message:
+                                button_id = message["interactive"]["button_reply"]["id"]
+                                if button_id == "agendar_busca":
+                                    send_whatsapp_message(phone_number, "Para agendar a busca, entre em contato com nosso atendente pelo número (16) 99999-9999")
+                                elif button_id == "agendar_horario":
+                                    send_whatsapp_message(phone_number, "Para agendar um horário, entre em contato com nosso atendente pelo número (16) 99999-9999")
+                                elif button_id == "agendar_tenis":
+                                    send_whatsapp_message(phone_number, "Para agendar a lavagem de tênis, entre em contato com nosso atendente pelo número (16) 99999-9999")
+                                elif button_id == "abrir_maps":
+                                    send_whatsapp_message(phone_number, "https://maps.google.com/?q=Avenida+Lazaro+de+Sousa+Campos+544+Bairro+Sao+Jose")
+                                elif button_id == "agendar_vestido":
+                                    send_whatsapp_message(phone_number, "Para agendar a lavagem de vestido, entre em contato com nosso atendente pelo número (16) 99999-9999")
+                                return "OK"
+                            
+                            # Handle text messages
                             incoming_msg = message["text"]["body"].strip()
                             
                             # Get current user state
@@ -260,13 +387,15 @@ def webhook():
                                         set_user_state(phone_number, SERVICE_INFO)
                                     elif incoming_msg == '8':
                                         set_user_state(phone_number, QUOTE_REQUEST)
-                                    send_whatsapp_message(phone_number, process_main_option(incoming_msg))
+                                    response = process_main_option(incoming_msg)
+                                    send_whatsapp_message(phone_number, response['message'], response['buttons'])
                                 else:
                                     send_whatsapp_message(phone_number, "❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para ver as opções disponíveis.")
                             
                             elif current_state == SERVICE_INFO:
                                 if is_numeric_input(incoming_msg) and 1 <= int(incoming_msg) <= 3:
-                                    send_whatsapp_message(phone_number, process_service_option(incoming_msg))
+                                    response = process_service_option(incoming_msg)
+                                    send_whatsapp_message(phone_number, response['message'], response['buttons'])
                                 else:
                                     send_whatsapp_message(phone_number, "❌ Desculpe, não entendi. Por favor, escolha uma opção válida ou digite *menu* para voltar ao menu principal.")
                             
